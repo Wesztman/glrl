@@ -1,0 +1,13 @@
+checks:
+  - name: "ns1"
+    command: "grep -q true file1.txt"
+  - name: "ns2"
+    command: "grep -q true file2.txt"
+  - name: "ns3"
+    command: "grep -q true file3.txt"
+  - name: "ns4"
+    command: "grep -q true file4.txt"
+  - name: "ns5"
+    command: "grep -q true file5.txt"
+  - name: "ns6"
+    command: "grep -q true file6.txt"
