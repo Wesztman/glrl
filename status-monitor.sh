@@ -20,6 +20,10 @@ fi
 start_time=$(date +%s%3N) # milliseconds since epoch
 config_reload_count=0
 
+# Variables to track previous state to avoid unnecessary redraws
+previous_status_line=""
+previous_time_line=""
+
 # Get initial config file modification time
 get_config_mtime() {
     if [[ -f "$CONFIG_FILE" ]]; then
@@ -70,6 +74,9 @@ reload_config() {
     config_mtime=$(get_config_mtime)
     # Clear the screen and redraw
     draw_static
+    # Reset previous state to force redraw
+    previous_status_line=""
+    previous_time_line=""
 }
 
 # Check if config file has been modified
@@ -96,9 +103,30 @@ draw_static() {
     echo
     echo
     echo
+}
 
-    # Move cursor back to where we'll update status
-    tput cup 4 0
+# Function to update status line only if changed
+update_status() {
+    local new_status_line="$1"
+    if [[ "$new_status_line" != "$previous_status_line" ]]; then
+        tput cup 4 0
+        echo -ne "$new_status_line"
+        # Clear any remaining characters from previous line
+        tput el
+        previous_status_line="$new_status_line"
+    fi
+}
+
+# Function to update time line only if changed
+update_time() {
+    local new_time_line="$1"
+    if [[ "$new_time_line" != "$previous_time_line" ]]; then
+        tput cup 6 0
+        echo -ne "$new_time_line"
+        # Clear any remaining characters from previous line
+        tput el
+        previous_time_line="$new_time_line"
+    fi
 }
 
 # Initial screen setup
@@ -114,9 +142,6 @@ while true; do
     fi
     ((config_check_counter++))
 
-    # Move cursor to status line position
-    tput cup 4 0
-
     # Build status line
     status_line=""
     for i in "${!check_names[@]}"; do
@@ -131,9 +156,8 @@ while true; do
         fi
     done
 
-    # Clear the status line and display new status
-    tput el
-    echo -e "$status_line"
+    # Update status only if it changed
+    update_status "$status_line"
 
     # Calculate elapsed time
     now=$(date +%s%3N)
@@ -142,13 +166,10 @@ while true; do
     min=$((sec / 60))
     sec=$((sec % 60))
 
-    # Move to time line and update
-    tput cup 6 0
-    tput el
-    echo -e "${YELLOW}$(printf "%02d:%02d" "$min" "$sec")${NC}"
+    time_line="${YELLOW}$(printf "%02d:%02d" "$min" "$sec")${NC}"
 
-    # Move cursor back to status line for next update
-    tput cup 4 0
+    # Update time only if it changed
+    update_time "$time_line"
 
     # Sleep before next update
     sleep 0.5
