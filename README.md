@@ -26,6 +26,12 @@ Next run
 
 `./status-monitor.sh`
 
+or in the above example with network namespaces
+
+`sudo ./status-monitor.sh`
+
+since it needs to run `ip netns exec`.
+
 and the status monitor will show the current status.
 
 ![image.png](image.png)
