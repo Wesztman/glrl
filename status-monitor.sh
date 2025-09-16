@@ -4,6 +4,7 @@
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m'  # reset
 
 # Get the script directory
@@ -17,7 +18,27 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 start_time=$(date +%s%3N) # milliseconds since epoch
-trap "tput cnorm; exit" INT  # cleanup on Ctrl+C
+config_reload_count=0
+
+# Get initial config file modification time
+get_config_mtime() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        stat -c %Y "$CONFIG_FILE" 2>/dev/null || stat -f %m "$CONFIG_FILE" 2>/dev/null
+    else
+        echo "0"
+    fi
+}
+
+config_mtime=$(get_config_mtime)
+
+# Cleanup function
+cleanup() {
+    clear
+    tput cnorm
+    exit
+}
+
+trap cleanup INT  # cleanup on Ctrl+C
 tput civis  # hide cursor
 
 # Parse configuration file
@@ -42,6 +63,25 @@ parse_config() {
     done
 }
 
+# Function to reload configuration
+reload_config() {
+    parse_config "$CONFIG_FILE"
+    ((config_reload_count++))
+    config_mtime=$(get_config_mtime)
+    # Clear the screen and redraw
+    draw_static
+}
+
+# Check if config file has been modified
+check_config_changed() {
+    local current_mtime
+    current_mtime=$(get_config_mtime)
+
+    if [[ "$current_mtime" != "$config_mtime" ]]; then
+        reload_config
+    fi
+}
+
 # Load the configuration
 parse_config "$CONFIG_FILE"
 
@@ -64,7 +104,16 @@ draw_static() {
 # Initial screen setup
 draw_static
 
+# Counter for config check frequency (check every 10 iterations = ~5 seconds)
+config_check_counter=0
+
 while true; do
+    # Check for config file changes every 10 iterations (every ~5 seconds)
+    if [[ $((config_check_counter % 10)) -eq 0 ]]; then
+        check_config_changed
+    fi
+    ((config_check_counter++))
+
     # Move cursor to status line position
     tput cup 4 0
 

@@ -1,6 +1,6 @@
 checks:
   - name: "ns1"
-    command: "grep -q true file1.txt"
+    command: "ip addr show | grep mpq | grep -q 'state UP'"
   - name: "ns2"
     command: "grep -q true file2.txt"
   - name: "ns3"
