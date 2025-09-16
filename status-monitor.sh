@@ -20,8 +20,7 @@ start_time=$(date +%s%3N) # milliseconds since epoch
 config_reload_count=0
 
 # Variables to track previous state to avoid unnecessary redraws
-previous_status_line=""
-previous_time_line=""
+previous_complete_display=""
 
 # Get initial config file modification time
 get_config_mtime() {
@@ -46,23 +45,50 @@ tput civis  # hide cursor
 
 # Parse configuration file
 parse_config() {
-    # Initialize arrays
-    declare -ga check_names=()
-    declare -ga check_commands=()
+    # Initialize arrays for sections
+    declare -ga section_titles=()
+    declare -ga section_check_names=()
+    declare -ga section_check_commands=()
 
-    # Get list of check entries
-    check_lines=$(grep -n "^[[:space:]]*-[[:space:]]*name:" "$1" | cut -d':' -f1)
+    # Get section starting lines (lines with "- title:")
+    section_lines=$(grep -n "^[[:space:]]*-[[:space:]]*title:" "$1" | cut -d':' -f1)
 
-    for line in $check_lines; do
-        name=$(sed -n "${line}s/.*name:[[:space:]]*\"*\([^\"]*\)\"*.*/\1/p" "$1")
-        # Look for command line in the next few lines
-        cmd_line=$((line + 1))
-        command=$(sed -n "${cmd_line}s/.*command:[[:space:]]*\"*\([^\"]*\)\"*.*/\1/p" "$1")
+    for section_line in $section_lines; do
+        # Extract title
+        title=$(sed -n "${section_line}s/.*title:[[:space:]]*\"*\([^\"]*\)\"*.*/\1/p" "$1")
+        section_titles+=("$title")
 
-        if [[ -n "$name" && -n "$command" ]]; then
-            check_names+=("$name")
-            check_commands+=("$command")
+        # Find checks for this section
+        section_names=()
+        section_commands=()
+
+        # Find the next section start or end of file
+        next_section_line=$(echo "$section_lines" | awk -v current="$section_line" '$1 > current {print $1; exit}')
+        if [[ -z "$next_section_line" ]]; then
+            next_section_line=$(wc -l < "$1")
+            ((next_section_line++))
         fi
+
+        # Find check entries between this section and the next
+        check_lines=$(sed -n "${section_line},${next_section_line}p" "$1" | grep -n "^[[:space:]]*-[[:space:]]*name:" | cut -d':' -f1)
+
+        for relative_line in $check_lines; do
+            absolute_line=$((section_line + relative_line - 1))
+            name=$(sed -n "${absolute_line}s/.*name:[[:space:]]*\"*\([^\"]*\)\"*.*/\1/p" "$1")
+
+            # Look for command line in the next line
+            cmd_line=$((absolute_line + 1))
+            command=$(sed -n "${cmd_line}s/.*command:[[:space:]]*\"*\([^\"]*\)\"*.*/\1/p" "$1")
+
+            if [[ -n "$name" && -n "$command" ]]; then
+                section_names+=("$name")
+                section_commands+=("$command")
+            fi
+        done
+
+        # Store arrays as strings (bash limitation workaround)
+        section_check_names+=("$(printf "%s\n" "${section_names[@]}")")
+        section_check_commands+=("$(printf "%s\n" "${section_commands[@]}")")
     done
 }
 
@@ -71,18 +97,14 @@ reload_config() {
     parse_config "$CONFIG_FILE"
     ((config_reload_count++))
     config_mtime=$(get_config_mtime)
-    # Clear the screen and redraw
-    draw_static
     # Reset previous state to force redraw
-    previous_status_line=""
-    previous_time_line=""
+    previous_complete_display=""
 }
 
 # Check if config file has been modified
 check_config_changed() {
     local current_mtime
     current_mtime=$(get_config_mtime)
-
     if [[ "$current_mtime" != "$config_mtime" ]]; then
         reload_config
     fi
@@ -91,45 +113,15 @@ check_config_changed() {
 # Load the configuration
 parse_config "$CONFIG_FILE"
 
-# Draw the static part of the display once
-draw_static() {
-    clear
-    echo -e "┌──────────────────────┐"
-    echo -e "│        ${YELLOW}STATUS${NC}        │"
-    echo -e "└──────────────────────┘"
-
-    # Add empty lines for status and time
-    echo
-    echo
-    echo
-}
-
-# Function to update status line only if changed
-update_status() {
-    local new_status_line="$1"
-    if [[ "$new_status_line" != "$previous_status_line" ]]; then
-        tput cup 4 0
-        echo -ne "$new_status_line"
-        # Clear any remaining characters from previous line
-        tput el
-        previous_status_line="$new_status_line"
+# Function to update complete display only if changed
+update_complete_display() {
+    local new_complete_display="$1"
+    if [[ "$new_complete_display" != "$previous_complete_display" ]]; then
+        clear
+        echo -ne "$new_complete_display"
+        previous_complete_display="$new_complete_display"
     fi
 }
-
-# Function to update time line only if changed
-update_time() {
-    local new_time_line="$1"
-    if [[ "$new_time_line" != "$previous_time_line" ]]; then
-        tput cup 6 0
-        echo -ne "$new_time_line"
-        # Clear any remaining characters from previous line
-        tput el
-        previous_time_line="$new_time_line"
-    fi
-}
-
-# Initial screen setup
-draw_static
 
 # Counter for config check frequency (check every 10 iterations = ~5 seconds)
 config_check_counter=0
@@ -141,22 +133,57 @@ while true; do
     fi
     ((config_check_counter++))
 
-    # Build status line
-    status_line=""
-    for i in "${!check_names[@]}"; do
-        # Execute the command in the context of the script directory
-        (cd "$SCRIPT_DIR" && bash -c "${check_commands[i]}")
-        result=$?
+    # Build complete display
+    display_content=""
 
-        if [[ $result -eq 0 ]]; then
-            status_line+="${GREEN}■ ${check_names[i]}${NC} "
-        else
-            status_line+="${RED}■ ${check_names[i]}${NC} "
+    # Process each section
+    for i in "${!section_titles[@]}"; do
+        # Add section title
+        title="${section_titles[i]}"
+        title_length=${#title}
+        box_width=$((title_length + 4))  # 2 spaces on each side
+
+        # Create top border
+        display_content+="┌"
+        for ((j=0; j<box_width; j++)); do
+            display_content+="─"
+        done
+        display_content+="┐\n"
+
+        # Create title line
+        display_content+="│  ${YELLOW}${title}${NC}  │\n"
+
+        # Create bottom border
+        display_content+="└"
+        for ((j=0; j<box_width; j++)); do
+            display_content+="─"
+        done
+        display_content+="┘\n\n"
+
+        # Get checks for this section
+        IFS=$'\n' read -d '' -r -a names <<< "${section_check_names[i]}" || true
+        IFS=$'\n' read -d '' -r -a commands <<< "${section_check_commands[i]}" || true
+
+        # Process checks for this section
+        for j in "${!names[@]}"; do
+            if [[ -n "${names[j]}" && -n "${commands[j]}" ]]; then
+                # Execute the command
+                (cd "$SCRIPT_DIR" && bash -c "${commands[j]}")
+                result=$?
+
+                if [[ $result -eq 0 ]]; then
+                    display_content+="${GREEN}■ ${names[j]}${NC}\n"
+                else
+                    display_content+="${RED}■ ${names[j]}${NC}\n"
+                fi
+            fi
+        done
+
+        # Add spacing between sections
+        if [[ $i -lt $((${#section_titles[@]} - 1)) ]]; then
+            display_content+="\n"
         fi
     done
-
-    # Update status only if it changed
-    update_status "$status_line"
 
     # Calculate elapsed time
     now=$(date +%s%3N)
@@ -165,10 +192,11 @@ while true; do
     min=$((sec / 60))
     sec=$((sec % 60))
 
-    time_line="${YELLOW}$(printf "%02d:%02d" "$min" "$sec")${NC}"
+    # Add timer to the complete display
+    display_content+="\n\n${YELLOW}$(printf "%02d:%02d" "$min" "$sec")${NC}\n"
 
-    # Update time only if it changed
-    update_time "$time_line"
+    # Update complete display at once
+    update_complete_display "${display_content}"
 
     # Sleep before next update
     sleep 0.5
