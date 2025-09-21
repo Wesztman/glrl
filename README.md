@@ -1,5 +1,6 @@
-# simple-status-monitor
-A simple status monitor written in bash with a dynamic configuration.
+# glrl - Green light/Red light
+
+Green light/Red light, or glrl in short, is a simple status monitor written in bash. Use it to monitor anything that can evaluate into a bash boolean expression.
 
 Use config.yaml to list bash commands that evaluate to true or false
 
@@ -24,11 +25,11 @@ Use config.yaml to list bash commands that evaluate to true or false
 
 Next run
 
-`./status-monitor.sh`
+`./glrl.sh`
 
 or in the above example with network namespaces
 
-`sudo ./status-monitor.sh`
+`sudo ./glrl.sh`
 
 since it needs to run `ip netns exec`.
 
