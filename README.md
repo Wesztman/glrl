@@ -2,7 +2,7 @@
 
 Green light/Red light, or glrl in short, is a simple status monitor written in bash. Use it to monitor anything that can evaluate into a bash boolean expression.
 
-Use config.yaml to list bash commands that evaluate to true or false
+Use config.yaml to list bash commands that evaluate to true or false (auto reloads on changes while running) 
 
 ```yaml
 - title: "NS1"
