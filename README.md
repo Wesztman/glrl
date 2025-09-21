@@ -33,7 +33,7 @@ or in the above example with network namespaces
 
 since it needs to run `ip netns exec`.
 
-and the status monitor will show the current status.
+and glrl will show the current status.
 
 ![image.png](docs/image.png)
 
