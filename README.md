@@ -35,6 +35,6 @@ since it needs to run `ip netns exec`.
 
 and the status monitor will show the current status.
 
-![image.png](image.png)
+![image.png](docs/image.png)
 
-A timer exist to make sure that the screen is not frozen.
+A timer exists to make sure that the screen is not frozen.
