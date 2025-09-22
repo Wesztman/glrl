@@ -1,6 +1,6 @@
-# glrl - Green light/Red light
+# rlgl - Red light, Green light
 
-Green light/Red light, or glrl in short, is a simple status monitor written in bash. Use it to monitor anything that can evaluate into a bash boolean expression.
+Red light, Green Light, or rlgl in short, is a simple status monitor written in bash. Use it to monitor anything that can evaluate into a bash boolean expression.
 
 Use config.yaml to list bash commands that evaluate to true or false (auto reloads on changes while running) 
 
@@ -25,15 +25,15 @@ Use config.yaml to list bash commands that evaluate to true or false (auto reloa
 
 Next run
 
-`./glrl.sh`
+`./rlgl.sh`
 
 or in the above example with network namespaces
 
-`sudo ./glrl.sh`
+`sudo ./rlgl.sh`
 
 since it needs to run `ip netns exec`.
 
-and glrl will show the current status.
+and rlgl will show the current status.
 
 ![image.png](docs/image.png)
 
@@ -43,4 +43,4 @@ A timer exists to make sure that the screen is not frozen.
 
 - Add the functionality to start the script with different config files.
 - Add the functionality to set different polling intervals, both globally and per check.
-- Rename everything to rlgl - Red light/green light, since this is the actual name of the game :p 
+- ~~Rename everything to rlgl - Red light/green light, since this is the actual name of the game :p~~
