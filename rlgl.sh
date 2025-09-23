@@ -67,6 +67,11 @@ config_reload_count=0
 # Variables to track previous state to avoid unnecessary redraws
 previous_complete_display=""
 
+# Variables for polling intervals
+declare -ga section_check_poll_intervals=()
+declare -ga check_last_run_times=()
+declare -ga check_last_results=()  # Cache results between polling intervals
+
 # Get initial config file modification time
 get_config_mtime() {
     if [[ -f "$CONFIG_FILE" ]]; then
@@ -94,6 +99,14 @@ parse_config() {
     declare -ga section_titles=()
     declare -ga section_check_names=()
     declare -ga section_check_commands=()
+    section_check_poll_intervals=()
+    check_last_run_times=()
+
+    # Parse global poll_interval if exists
+    global_poll_interval=$(grep "^[[:space:]]*poll_interval:" "$1" | head -1 | sed 's/.*poll_interval:[[:space:]]*\([0-9.]*\).*/\1/')
+    if [[ -z "$global_poll_interval" || ! "$global_poll_interval" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+        global_poll_interval=0.5  # default fallback
+    fi
 
     # Get section starting lines (lines with "- title:")
     section_lines=$(grep -n "^[[:space:]]*-[[:space:]]*title:" "$1" | cut -d':' -f1)
@@ -106,6 +119,7 @@ parse_config() {
         # Find checks for this section
         section_names=()
         section_commands=()
+        section_intervals=()
 
         # Find the next section start or end of file
         next_section_line=$(echo "$section_lines" | awk -v current="$section_line" '$1 > current {print $1; exit}')
@@ -121,19 +135,41 @@ parse_config() {
             absolute_line=$((section_line + relative_line - 1))
             name=$(sed -n "${absolute_line}s/.*name:[[:space:]]*\"*\([^\"]*\)\"*.*/\1/p" "$1")
 
-            # Look for command line in the next line
+            # Look for command line in the next few lines
             cmd_line=$((absolute_line + 1))
             command=$(sed -n "${cmd_line}s/.*command:[[:space:]]*\"*\([^\"]*\)\"*.*/\1/p" "$1")
+
+            # Look for poll_interval in the next few lines after name
+            poll_interval=""
+            for ((offset=1; offset<=3; offset++)); do
+                check_line=$((absolute_line + offset))
+                if [[ $check_line -lt $next_section_line ]]; then
+                    interval_line=$(sed -n "${check_line}p" "$1")
+                    if [[ "$interval_line" =~ poll_interval:[[:space:]]*([0-9.]+) ]]; then
+                        poll_interval="${BASH_REMATCH[1]}"
+                        break
+                    fi
+                fi
+            done
+
+            # Use global interval if no specific interval found
+            if [[ -z "$poll_interval" ]]; then
+                poll_interval="$global_poll_interval"
+            fi
 
             if [[ -n "$name" && -n "$command" ]]; then
                 section_names+=("$name")
                 section_commands+=("$command")
+                section_intervals+=("$poll_interval")
+                check_last_run_times+=(0)  # Initialize last run time
+                check_last_results+=(1)    # Initialize with failure state
             fi
         done
 
         # Store arrays as strings (bash limitation workaround)
         section_check_names+=("$(printf "%s\n" "${section_names[@]}")")
         section_check_commands+=("$(printf "%s\n" "${section_commands[@]}")")
+        section_check_poll_intervals+=("$(printf "%s\n" "${section_intervals[@]}")")
     done
 }
 
@@ -170,6 +206,7 @@ update_complete_display() {
 
 # Counter for config check frequency (check every 10 iterations = ~5 seconds)
 config_check_counter=0
+check_index=0  # Global check index counter
 
 while true; do
     # Check for config file changes every 10 iterations (every ~5 seconds)
@@ -180,6 +217,7 @@ while true; do
 
     # Build complete display
     display_content=""
+    check_index=0  # Reset check index for this iteration
 
     # Process each section
     for i in "${!section_titles[@]}"; do
@@ -208,19 +246,41 @@ while true; do
         # Get checks for this section
         IFS=$'\n' read -d '' -r -a names <<< "${section_check_names[i]}" || true
         IFS=$'\n' read -d '' -r -a commands <<< "${section_check_commands[i]}" || true
+        IFS=$'\n' read -d '' -r -a intervals <<< "${section_check_poll_intervals[i]}" || true
 
         # Process checks for this section
         for j in "${!names[@]}"; do
             if [[ -n "${names[j]}" && -n "${commands[j]}" ]]; then
-                # Execute the command
-                (cd "$SCRIPT_DIR" && bash -c "${commands[j]}")
-                result=$?
+                current_time=$(date +%s%3N)  # milliseconds
+                # Convert poll interval to milliseconds using bash arithmetic
+                poll_interval_ms=$(printf "%.0f" $(echo "${intervals[j]} * 1000" | awk '{print $1 * 1000}'))
+
+                # Initialize cached result if not exists
+                if [[ -z "${check_last_results[check_index]:-}" ]]; then
+                    check_last_results[check_index]=1  # Default to failure
+                fi
+
+                # Check if enough time has passed since last run
+                time_since_last=$((current_time - ${check_last_run_times[check_index]}))
+
+                if [[ $time_since_last -ge $poll_interval_ms ]]; then
+                    # Execute the command and cache the result
+                    (cd "$SCRIPT_DIR" && bash -c "${commands[j]}")
+                    result=$?
+                    check_last_run_times[check_index]=$current_time
+                    check_last_results[check_index]=$result
+                else
+                    # Use cached result
+                    result=${check_last_results[check_index]}
+                fi
 
                 if [[ $result -eq 0 ]]; then
-                    display_content+="${GREEN}■ ${names[j]}${NC}\n"
+                    display_content+="${GREEN}■ ${names[j]}${NC} (${intervals[j]}s)\n"
                 else
-                    display_content+="${RED}■ ${names[j]}${NC}\n"
+                    display_content+="${RED}■ ${names[j]}${NC} (${intervals[j]}s)\n"
                 fi
+
+                ((check_index++))
             fi
         done
 
@@ -237,12 +297,12 @@ while true; do
     min=$((sec / 60))
     sec=$((sec % 60))
 
-    # Add timer to the complete display
-    display_content+="\n\n${YELLOW}$(printf "%02d:%02d" "$min" "$sec")${NC}\n"
+    # Add timer and global interval info to the complete display
+    display_content+="\n\n${YELLOW}$(printf "%02d:%02d" "$min" "$sec")${NC} | Global: ${global_poll_interval}s\n"
 
     # Update complete display at once
     update_complete_display "${display_content}"
 
-    # Sleep before next update
-    sleep 0.5
+    # Sleep before next update (use a shorter base interval for responsiveness)
+    sleep 0.1
 done

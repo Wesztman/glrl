@@ -1,11 +1,17 @@
+# Global settings
+poll_interval: 3.0  # Default polling interval in seconds
+
+# Check sections
 - title: "Network Namespace 1 (ns1) Status"
   checks:
     - name: "ns1"
       command: "ip addr show | grep mpq | grep -q 'state UP'"
+      poll_interval: 2.5  # Override global interval for this check
     - name: "ns2"
       command: "grep -q true test/file1.txt"
     - name: "ns3"
       command: "grep -q true test/file3.txt"
+      poll_interval: 1  # Faster polling for this check
     - name: "ns4"
       command: "grep -q true test/file4.txt"
     - name: "ns5"
@@ -16,6 +22,7 @@
   checks:
     - name: "ns1"
       command: "ip addr show | grep mpq | grep -q 'state UP'"
+      poll_interval: 3.0  # Even slower polling
     - name: "ns2"
       command: "grep -q true test/file2.txt"
     - name: "ns3"
