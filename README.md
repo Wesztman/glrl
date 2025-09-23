@@ -2,7 +2,7 @@
 
 Red light, Green Light, or rlgl in short, is a simple status monitor written in bash. Use it to monitor anything that can evaluate into a bash boolean expression.
 
-Use config.yaml to list bash commands that evaluate to true or false (auto reloads on changes while running) 
+Use config.yaml to list bash commands that evaluate to true or false (auto reloads on changes while running)
 
 ```yaml
 - title: "NS1"
@@ -39,7 +39,9 @@ and rlgl will show the current status.
 
 A timer exists to make sure that the screen is not frozen.
 
-# Todo
+- The script can be started with different config files using the `-c` or `--config` option.
+
+## Todo
 
 - Add the functionality to start the script with different config files.
 - Add the functionality to set different polling intervals, both globally and per check.

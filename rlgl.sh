@@ -6,15 +6,60 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'  # reset
 
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo "Options:"
+    echo "  -c, --config FILE    Specify config file (default: config.yaml)"
+    echo "  -h, --help          Show this help message"
+    echo ""
+    echo "Example: $0 -c /path/to/custom-config.yaml"
+}
+
+# Parse command line arguments
+CONFIG_FILE_ARG=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -c|--config)
+            CONFIG_FILE_ARG="$2"
+            shift 2
+            ;;
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            show_usage
+            exit 1
+            ;;
+    esac
+done
+
 # Get the script directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-CONFIG_FILE="$SCRIPT_DIR/config.yaml"
+
+# Set config file path
+if [[ -n "$CONFIG_FILE_ARG" ]]; then
+    # Use absolute path if provided, or relative to current directory
+    if [[ "$CONFIG_FILE_ARG" = /* ]]; then
+        CONFIG_FILE="$CONFIG_FILE_ARG"
+    else
+        CONFIG_FILE="$(pwd)/$CONFIG_FILE_ARG"
+    fi
+else
+    # Use default config file in script directory
+    CONFIG_FILE="$SCRIPT_DIR/config.yaml"
+fi
 
 # Check if config file exists
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Error: Config file not found at $CONFIG_FILE"
     exit 1
 fi
+
+echo "Using config file: $CONFIG_FILE"
+sleep 2  # Brief pause to show the config file being used
 
 start_time=$(date +%s%3N) # milliseconds since epoch
 config_reload_count=0
