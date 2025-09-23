@@ -63,9 +63,3 @@ global_poll_interval: 10  # Global polling interval in seconds
     - name: "ns1 - usb1 is UP"
       command: "ip netns exec ns1 ip addr show 2>/dev/null | grep usb1 | grep -q 'state UP'"
 ```
-
-## Todo
-
-- ~~Add the functionality to start the script with different config files.~~
-- Add the functionality to set different polling intervals, both globally and per check.
-- ~~Rename everything to rlgl - Red light/green light, since this is the actual name of the game :p~~
