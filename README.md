@@ -39,7 +39,9 @@ and rlgl will show the current status.
 
 A timer exists to make sure that the screen is not frozen.
 
-- The script can be started with different config files using the `-c` or `--config` option.
+## Starting with different config files
+
+The script can be started with different config files using the `-c` or `--config` option.
 
 ## Todo
 
