@@ -50,7 +50,7 @@ The script can be started with different config files using the `-c` or `--confi
 The polling intervals can be set globally in the `config.yaml` file or overridden for individual checks. The global polling interval is defined at the top of the configuration file, while each check can specify its own interval using the `poll_interval` key.
 
 ```yaml
-global_poll_interval: 10  # Global polling interval in seconds
+poll_interval: 10  # Global polling interval in seconds
 
 - title: "NS1"
   checks:
